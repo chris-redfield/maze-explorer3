@@ -792,8 +792,8 @@
                 player.angle += e.movementX * 0.0014;
                 player.pitch -= e.movementY * 0.0014; // Reversed Y-axis
                 
-                // Clamp pitch to prevent over-rotation (about 60 degrees up/down)
-                const maxPitch = 1.0;
+                // Clamp pitch to prevent over-rotation (about 80 degrees up/down)
+                const maxPitch = 1.4;
                 player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
             }
         });
