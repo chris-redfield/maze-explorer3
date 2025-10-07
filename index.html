@@ -122,6 +122,20 @@
             display: block;
             cursor: none;
             image-rendering: pixelated;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #minimapCanvas {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            border: 2px solid #4a90e2;
+            background: #000;
+            border-radius: 5px;
+            z-index: 20;
         }
 
         #ui {
@@ -231,6 +245,7 @@
     </div>
 
     <canvas id="gameCanvas"></canvas>
+    <canvas id="minimapCanvas"></canvas>
     <div id="crosshair">+</div>
     <div id="ui">
         <div>Mode: <span id="modeDisplay">Campaign</span></div>
@@ -252,8 +267,14 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = 800;
-        canvas.height = 600;
+        canvas.width = 1400;
+        canvas.height = 900;
+
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        const minimapSize = 200;
+        minimapCanvas.width = minimapSize;
+        minimapCanvas.height = minimapSize;
 
         // Game state
         let gameMode = 'campaign';
@@ -344,6 +365,90 @@
                     return null;
                 }
                 return this.grid[cellY][cellX];
+            }
+
+            markExplored(x, y) {
+                const cellX = Math.floor(x / this.cellSize);
+                const cellY = Math.floor(y / this.cellSize);
+                if (cellX >= 0 && cellX < this.cols && cellY >= 0 && cellY < this.rows) {
+                    this.grid[cellY][cellX].explored = true;
+                    // Also mark adjacent cells as partially explored for better visibility
+                    const radius = 1;
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            const nx = cellX + dx;
+                            const ny = cellY + dy;
+                            if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                                this.grid[ny][nx].explored = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            drawMinimap(playerX, playerY) {
+                minimapCtx.fillStyle = '#000';
+                minimapCtx.fillRect(0, 0, minimapSize, minimapSize);
+
+                const cellSize = Math.min(minimapSize / this.cols, minimapSize / this.rows);
+                
+                minimapCtx.strokeStyle = '#4a90e2';
+                minimapCtx.lineWidth = 1;
+
+                for (let y = 0; y < this.rows; y++) {
+                    for (let x = 0; x < this.cols; x++) {
+                        const cell = this.grid[y][x];
+                        
+                        if (!cell.explored) continue;
+
+                        const screenX = x * cellSize;
+                        const screenY = y * cellSize;
+
+                        // Draw exit cell
+                        if (cell.isExit) {
+                            minimapCtx.fillStyle = '#00ff88';
+                            minimapCtx.fillRect(screenX + 1, screenY + 1, cellSize - 2, cellSize - 2);
+                        }
+
+                        // Draw walls
+                        minimapCtx.beginPath();
+                        if (cell.walls.top) {
+                            minimapCtx.moveTo(screenX, screenY);
+                            minimapCtx.lineTo(screenX + cellSize, screenY);
+                        }
+                        if (cell.walls.right) {
+                            minimapCtx.moveTo(screenX + cellSize, screenY);
+                            minimapCtx.lineTo(screenX + cellSize, screenY + cellSize);
+                        }
+                        if (cell.walls.bottom) {
+                            minimapCtx.moveTo(screenX, screenY + cellSize);
+                            minimapCtx.lineTo(screenX + cellSize, screenY + cellSize);
+                        }
+                        if (cell.walls.left) {
+                            minimapCtx.moveTo(screenX, screenY);
+                            minimapCtx.lineTo(screenX, screenY + cellSize);
+                        }
+                        minimapCtx.stroke();
+                    }
+                }
+
+                // Draw start position
+                minimapCtx.fillStyle = '#ffaa00';
+                minimapCtx.fillRect(1, 1, cellSize - 2, cellSize - 2);
+
+                // Draw player
+                const playerCellX = Math.floor(playerX / this.cellSize);
+                const playerCellY = Math.floor(playerY / this.cellSize);
+                minimapCtx.fillStyle = '#ff3366';
+                minimapCtx.beginPath();
+                minimapCtx.arc(
+                    playerCellX * cellSize + cellSize / 2,
+                    playerCellY * cellSize + cellSize / 2,
+                    cellSize / 3,
+                    0,
+                    Math.PI * 2
+                );
+                minimapCtx.fill();
             }
         }
 
@@ -552,6 +657,9 @@
                 player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
             }
             
+            // Mark starting position as explored
+            maze.markExplored(player.x, player.y);
+            
             updateUI();
             canvas.requestPointerLock();
         }
@@ -572,6 +680,7 @@
                 document.getElementById('win').style.display = 'none';
                 updateUI();
             }
+            maze.markExplored(player.x, player.y);
         }
 
         function returnToMenu() {
@@ -623,6 +732,7 @@
                 const mazeSize = 5 + gameState.level * 5;
                 maze = new Maze(mazeSize, mazeSize, gameState.seed);
                 player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
+                maze.markExplored(player.x, player.y);
                 updateUI();
             } else {
                 quickMazeConfig.seed = Date.now();
@@ -631,6 +741,7 @@
                 const mazeSize = 5 + quickMazeConfig.level * 5;
                 maze = new Maze(mazeSize, mazeSize, quickMazeConfig.seed);
                 player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
+                maze.markExplored(player.x, player.y);
                 updateUI();
             }
         });
@@ -680,6 +791,9 @@
                 if (keys['a']) player.move(-strafeX, -strafeY, maze);
                 if (keys['d']) player.move(strafeX, strafeY, maze);
 
+                // Mark current position as explored
+                maze.markExplored(player.x, player.y);
+
                 // Check for exit
                 if (player.checkExit(maze)) {
                     gameState.won = true;
@@ -689,6 +803,7 @@
 
             // Render
             player.render(maze);
+            maze.drawMinimap(player.x, player.y);
 
             requestAnimationFrame(gameLoop);
         }
