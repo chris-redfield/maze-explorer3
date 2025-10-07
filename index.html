@@ -460,6 +460,7 @@
                 this.x = x;
                 this.y = y;
                 this.angle = angle;
+                this.pitch = 0; // Vertical look angle
                 this.moveSpeed = 3;
                 this.rotSpeed = 0.05;
                 this.fov = Math.PI / 3;
@@ -577,13 +578,17 @@
             render(maze) {
                 const rays = this.castRays(maze);
                 
-                // Sky
-                ctx.fillStyle = '#1a1a2e';
-                ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+                // Calculate vertical offset based on pitch
+                const pitchOffset = this.pitch * 300;
                 
-                // Floor
+                // Sky - fill everything, accounting for pitch
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Floor - draw relative to pitch
+                const horizonY = canvas.height / 2 + pitchOffset;
                 ctx.fillStyle = '#0a0a14';
-                ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+                ctx.fillRect(0, horizonY, canvas.width, canvas.height - horizonY);
                 
                 // Walls
                 for (let i = 0; i < rays.length; i++) {
@@ -591,7 +596,7 @@
                     const correctedDist = ray.dist * Math.cos(ray.angle - this.angle);
                     const wallHeight = (maze.cellSize * 300) / correctedDist;
                     
-                    const wallTop = (canvas.height - wallHeight) / 2;
+                    const wallTop = (canvas.height - wallHeight) / 2 + pitchOffset;
                     const wallBottom = wallTop + wallHeight;
                     
                     let brightness = Math.max(0, 1 - correctedDist / 500);
@@ -783,7 +788,13 @@
 
         document.addEventListener('mousemove', (e) => {
             if (pointerLocked && player) {
-                player.angle += e.movementX * 0.002;
+                // Reduced sensitivity by 30% (multiply by 0.7)
+                player.angle += e.movementX * 0.0014;
+                player.pitch -= e.movementY * 0.0014; // Reversed Y-axis
+                
+                // Clamp pitch to prevent over-rotation (about 60 degrees up/down)
+                const maxPitch = 1.0;
+                player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
             }
         });
 
