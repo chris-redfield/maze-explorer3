@@ -404,6 +404,12 @@
                         const screenX = x * cellSize;
                         const screenY = y * cellSize;
 
+                        // Draw start cell (0,0)
+                        if (x === 0 && y === 0) {
+                            minimapCtx.fillStyle = '#ffaa00';
+                            minimapCtx.fillRect(screenX + 1, screenY + 1, cellSize - 2, cellSize - 2);
+                        }
+
                         // Draw exit cell
                         if (cell.isExit) {
                             minimapCtx.fillStyle = '#00ff88';
@@ -431,10 +437,6 @@
                         minimapCtx.stroke();
                     }
                 }
-
-                // Draw start position
-                minimapCtx.fillStyle = '#ffaa00';
-                minimapCtx.fillRect(1, 1, cellSize - 2, cellSize - 2);
 
                 // Draw player
                 const playerCellX = Math.floor(playerX / this.cellSize);
@@ -522,7 +524,8 @@
                 const step = 0.5;
                 const maxDist = 1000;
                 let hitWall = false;
-                let isExit = false;
+                let hitCellX = -1;
+                let hitCellY = -1;
                 let wallSide = null;
                 
                 while (!hitWall && dist < maxDist) {
@@ -544,24 +547,31 @@
                     
                     if (localY < 1 && cell.walls.top) {
                         hitWall = true;
+                        hitCellX = cellX;
+                        hitCellY = cellY;
                         wallSide = 'horizontal';
                     } else if (localY > maze.cellSize - 1 && cell.walls.bottom) {
                         hitWall = true;
+                        hitCellX = cellX;
+                        hitCellY = cellY;
                         wallSide = 'horizontal';
                     } else if (localX < 1 && cell.walls.left) {
                         hitWall = true;
+                        hitCellX = cellX;
+                        hitCellY = cellY;
                         wallSide = 'vertical';
                     } else if (localX > maze.cellSize - 1 && cell.walls.right) {
                         hitWall = true;
+                        hitCellX = cellX;
+                        hitCellY = cellY;
                         wallSide = 'vertical';
-                    }
-                    
-                    if (cell.isExit) {
-                        isExit = true;
                     }
                 }
                 
-                return { dist, angle, isExit, wallSide };
+                const isExit = (hitCellX === maze.exitX && hitCellY === maze.exitY);
+                const isStart = (hitCellX === 0 && hitCellY === 0);
+                
+                return { dist, angle, isExit, isStart, wallSide };
             }
 
             render(maze) {
@@ -590,6 +600,11 @@
                         const r = Math.floor(0 * brightness);
                         const g = Math.floor(255 * brightness);
                         const b = Math.floor(136 * brightness);
+                        ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    } else if (ray.isStart) {
+                        const r = Math.floor(255 * brightness);
+                        const g = Math.floor(170 * brightness);
+                        const b = Math.floor(0 * brightness);
                         ctx.fillStyle = `rgb(${r},${g},${b})`;
                     } else {
                         if (ray.wallSide === 'vertical') {
