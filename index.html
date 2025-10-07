@@ -798,19 +798,34 @@
             }
         });
 
-        // Game loop
-        function gameLoop() {
+        // Game loop with delta time for frame-rate independence
+        let lastTime = performance.now();
+        const targetFPS = 60; // Target 60 FPS as baseline
+        const targetFrameTime = 1000 / targetFPS;
+
+        function gameLoop(currentTime) {
             if (!document.getElementById('startMenu').classList.contains('hidden') || !maze || !player) {
+                lastTime = currentTime;
                 requestAnimationFrame(gameLoop);
                 return;
             }
 
+            // Calculate delta time in milliseconds
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            // Normalize to 60 FPS baseline (deltaMultiplier = 1.0 at 60 FPS)
+            const deltaMultiplier = deltaTime / targetFrameTime;
+            
+            // Cap delta time to prevent huge jumps (e.g., if tab was backgrounded)
+            const cappedDelta = Math.min(deltaMultiplier, 3);
+
             if (!gameState.won) {
-                // Movement
-                const moveX = Math.cos(player.angle) * player.moveSpeed;
-                const moveY = Math.sin(player.angle) * player.moveSpeed;
-                const strafeX = Math.cos(player.angle + Math.PI / 2) * player.moveSpeed;
-                const strafeY = Math.sin(player.angle + Math.PI / 2) * player.moveSpeed;
+                // Movement with delta time compensation
+                const moveX = Math.cos(player.angle) * player.moveSpeed * cappedDelta;
+                const moveY = Math.sin(player.angle) * player.moveSpeed * cappedDelta;
+                const strafeX = Math.cos(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
+                const strafeY = Math.sin(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
 
                 if (keys['w']) player.move(moveX, moveY, maze);
                 if (keys['s']) player.move(-moveX, -moveY, maze);
@@ -834,7 +849,7 @@
             requestAnimationFrame(gameLoop);
         }
 
-        gameLoop();
+        gameLoop(performance.now());
     </script>
 </body>
 </html>
