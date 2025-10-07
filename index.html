@@ -118,6 +118,57 @@
             font-family: 'Courier New', monospace;
         }
 
+        .windows-mode-toggle {
+            background: rgba(74, 144, 226, 0.1);
+            border: 2px solid #4a90e2;
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .windows-mode-toggle:hover {
+            background: rgba(74, 144, 226, 0.2);
+        }
+
+        .toggle-label {
+            font-size: 18px;
+            color: #4a90e2;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            border: 2px solid #4a90e2;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: rgba(74, 144, 226, 0.5);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 22px;
+            height: 22px;
+            background: #4a90e2;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(30px);
+            background: #00ff88;
+        }
+
         #gameCanvas {
             display: block;
             cursor: none;
@@ -239,6 +290,12 @@
                     </div>
                 </div>
             </div>
+            <div class="windows-mode-toggle" id="windowsModeToggle">
+                <span class="toggle-label">Windows Screensaver Mode</span>
+                <div class="toggle-switch" id="toggleSwitch">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
             <div class="menu-item disabled">PATREON</div>
             <div class="menu-item disabled">PIX</div>
         </div>
@@ -251,6 +308,7 @@
         <div>Mode: <span id="modeDisplay">Campaign</span></div>
         <div>Level: <span id="level">1</span></div>
         <div>Seed: <span id="seedDisplay">0</span></div>
+        <div>Graphics: <span id="graphicsMode">Default</span></div>
         <button id="resetBtn">Reset Maze</button>
         <button id="menuBtn">Main Menu</button>
     </div>
@@ -277,11 +335,107 @@
         minimapCanvas.height = minimapSize;
 
         // Game state
+        let windowsMode = false;
         let gameMode = 'campaign';
         let quickMazeConfig = { level: 1, seed: 12345 };
         let gameState = { level: 1, seed: Date.now(), won: false };
         let maze, player;
         let pointerLocked = false;
+
+        // Texture generation
+        function generateBrickTexture() {
+            const texCanvas = document.createElement('canvas');
+            texCanvas.width = 64;
+            texCanvas.height = 64;
+            const texCtx = texCanvas.getContext('2d');
+
+            // Background (mortar)
+            texCtx.fillStyle = '#e0e0e0';
+            texCtx.fillRect(0, 0, 64, 64);
+
+            // Draw bricks
+            const brickHeight = 16;
+            const brickWidth = 32;
+            const mortarSize = 2;
+
+            for (let y = 0; y < 4; y++) {
+                const offsetX = (y % 2) * (brickWidth / 2);
+                for (let x = -1; x < 3; x++) {
+                    const bx = x * brickWidth + offsetX;
+                    const by = y * brickHeight;
+
+                    // Brick color with slight variation
+                    const variation = Math.random() * 20 - 10;
+                    const r = Math.max(0, Math.min(255, 180 + variation));
+                    const g = Math.max(0, Math.min(255, 40 + variation));
+                    const b = Math.max(0, Math.min(255, 40 + variation));
+                    
+                    texCtx.fillStyle = `rgb(${r},${g},${b})`;
+                    texCtx.fillRect(
+                        bx + mortarSize,
+                        by + mortarSize,
+                        brickWidth - mortarSize * 2,
+                        brickHeight - mortarSize * 2
+                    );
+
+                    // Add some texture to bricks
+                    for (let i = 0; i < 5; i++) {
+                        const tx = bx + Math.random() * brickWidth;
+                        const ty = by + Math.random() * brickHeight;
+                        texCtx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
+                        texCtx.fillRect(tx, ty, 2, 2);
+                    }
+                }
+            }
+
+            return texCanvas;
+        }
+
+        function generateCarpetTexture() {
+            const texCanvas = document.createElement('canvas');
+            texCanvas.width = 64;
+            texCanvas.height = 64;
+            const texCtx = texCanvas.getContext('2d');
+
+            // Base carpet color
+            texCtx.fillStyle = '#d4a850';
+            texCtx.fillRect(0, 0, 64, 64);
+
+            // Add noise/texture
+            for (let y = 0; y < 64; y++) {
+                for (let x = 0; x < 64; x++) {
+                    if (Math.random() > 0.7) {
+                        const brightness = Math.random() * 40 - 20;
+                        const r = Math.max(0, Math.min(255, 212 + brightness));
+                        const g = Math.max(0, Math.min(255, 168 + brightness));
+                        const b = Math.max(0, Math.min(255, 80 + brightness));
+                        texCtx.fillStyle = `rgb(${r},${g},${b})`;
+                        texCtx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+
+            return texCanvas;
+        }
+
+        const brickTexture = generateBrickTexture();
+        const carpetTexture = generateCarpetTexture();
+        
+        // Cache texture pixel data for faster access
+        const brickTextureData = brickTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
+        const carpetTextureData = carpetTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
+
+        // Windows mode toggle
+        document.getElementById('windowsModeToggle').addEventListener('click', () => {
+            windowsMode = !windowsMode;
+            const toggleSwitch = document.getElementById('toggleSwitch');
+            if (windowsMode) {
+                toggleSwitch.classList.add('active');
+            } else {
+                toggleSwitch.classList.remove('active');
+            }
+            updateUI();
+        });
 
         // Seeded random number generator
         class Random {
@@ -372,7 +526,6 @@
                 const cellY = Math.floor(y / this.cellSize);
                 if (cellX >= 0 && cellX < this.cols && cellY >= 0 && cellY < this.rows) {
                     this.grid[cellY][cellX].explored = true;
-                    // Also mark adjacent cells as partially explored for better visibility
                     const radius = 1;
                     for (let dy = -radius; dy <= radius; dy++) {
                         for (let dx = -radius; dx <= radius; dx++) {
@@ -404,19 +557,16 @@
                         const screenX = x * cellSize;
                         const screenY = y * cellSize;
 
-                        // Draw start cell (0,0)
                         if (x === 0 && y === 0) {
                             minimapCtx.fillStyle = '#ffaa00';
                             minimapCtx.fillRect(screenX + 1, screenY + 1, cellSize - 2, cellSize - 2);
                         }
 
-                        // Draw exit cell
                         if (cell.isExit) {
                             minimapCtx.fillStyle = '#00ff88';
                             minimapCtx.fillRect(screenX + 1, screenY + 1, cellSize - 2, cellSize - 2);
                         }
 
-                        // Draw walls
                         minimapCtx.beginPath();
                         if (cell.walls.top) {
                             minimapCtx.moveTo(screenX, screenY);
@@ -438,7 +588,6 @@
                     }
                 }
 
-                // Draw player
                 const playerCellX = Math.floor(playerX / this.cellSize);
                 const playerCellY = Math.floor(playerY / this.cellSize);
                 minimapCtx.fillStyle = '#ff3366';
@@ -460,7 +609,7 @@
                 this.x = x;
                 this.y = y;
                 this.angle = angle;
-                this.pitch = 0; // Vertical look angle
+                this.pitch = 0;
                 this.moveSpeed = 3;
                 this.rotSpeed = 0.05;
                 this.fov = Math.PI / 3;
@@ -528,6 +677,8 @@
                 let hitCellX = -1;
                 let hitCellY = -1;
                 let wallSide = null;
+                let hitX = 0;
+                let hitY = 0;
                 
                 while (!hitWall && dist < maxDist) {
                     dist += step;
@@ -551,44 +702,90 @@
                         hitCellX = cellX;
                         hitCellY = cellY;
                         wallSide = 'horizontal';
+                        hitX = testX;
+                        hitY = testY;
                     } else if (localY > maze.cellSize - 1 && cell.walls.bottom) {
                         hitWall = true;
                         hitCellX = cellX;
                         hitCellY = cellY;
                         wallSide = 'horizontal';
+                        hitX = testX;
+                        hitY = testY;
                     } else if (localX < 1 && cell.walls.left) {
                         hitWall = true;
                         hitCellX = cellX;
                         hitCellY = cellY;
                         wallSide = 'vertical';
+                        hitX = testX;
+                        hitY = testY;
                     } else if (localX > maze.cellSize - 1 && cell.walls.right) {
                         hitWall = true;
                         hitCellX = cellX;
                         hitCellY = cellY;
                         wallSide = 'vertical';
+                        hitX = testX;
+                        hitY = testY;
                     }
                 }
                 
                 const isExit = (hitCellX === maze.exitX && hitCellY === maze.exitY);
                 const isStart = (hitCellX === 0 && hitCellY === 0);
                 
-                return { dist, angle, isExit, isStart, wallSide };
+                return { dist, angle, isExit, isStart, wallSide, hitX, hitY };
             }
 
             render(maze) {
                 const rays = this.castRays(maze);
-                
-                // Calculate vertical offset based on pitch
                 const pitchOffset = this.pitch * 300;
                 
-                // Sky - fill everything, accounting for pitch
-                ctx.fillStyle = '#1a1a2e';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Create ImageData buffer for the entire screen
+                const imageData = ctx.createImageData(canvas.width, canvas.height);
+                const pixels = imageData.data;
                 
-                // Floor - draw relative to pitch
+                // Sky - black (already 0s)
+                
+                // Floor
                 const horizonY = canvas.height / 2 + pitchOffset;
-                ctx.fillStyle = '#0a0a14';
-                ctx.fillRect(0, horizonY, canvas.width, canvas.height - horizonY);
+                
+                if (windowsMode) {
+                    // Draw textured floor directly to pixel buffer
+                    for (let y = Math.max(0, Math.floor(horizonY)); y < canvas.height; y++) {
+                        const floorDist = (canvas.height / 2) / (y - canvas.height / 2 - pitchOffset);
+                        
+                        for (let x = 0; x < canvas.width; x++) {
+                            const rayAngle = this.angle - this.fov / 2 + (this.fov * x / canvas.width);
+                            const floorX = this.x + Math.cos(rayAngle) * floorDist * 100;
+                            const floorY = this.y + Math.sin(rayAngle) * floorDist * 100;
+                            
+                            // Multiply by 4 to make texture 4x smaller (tiles more)
+                            let texX = Math.floor((Math.abs(floorX) * 4)) % 64;
+                            let texY = Math.floor((Math.abs(floorY) * 4)) % 64;
+                            
+                            texX = Math.max(0, Math.min(63, texX));
+                            texY = Math.max(0, Math.min(63, texY));
+                            
+                            const texIndex = (texY * 64 + texX) * 4;
+                            const pixelIndex = (y * canvas.width + x) * 4;
+                            
+                            const brightness = Math.max(0.3, 1 - floorDist / 8);
+                            pixels[pixelIndex] = carpetTextureData[texIndex] * brightness;
+                            pixels[pixelIndex + 1] = carpetTextureData[texIndex + 1] * brightness;
+                            pixels[pixelIndex + 2] = carpetTextureData[texIndex + 2] * brightness;
+                            pixels[pixelIndex + 3] = 255;
+                        }
+                    }
+                } else {
+                    // Default floor
+                    for (let y = Math.max(0, Math.floor(horizonY)); y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const pixelIndex = (y * canvas.width + x) * 4;
+                            pixels[pixelIndex] = 10;
+                            pixels[pixelIndex + 1] = 10;
+                            pixels[pixelIndex + 2] = 20;
+                            pixels[pixelIndex + 3] = 255;
+                        }
+                    }
+                }
                 
                 // Walls
                 for (let i = 0; i < rays.length; i++) {
@@ -599,32 +796,68 @@
                     const wallTop = (canvas.height - wallHeight) / 2 + pitchOffset;
                     const wallBottom = wallTop + wallHeight;
                     
-                    let brightness = Math.max(0, 1 - correctedDist / 500);
-                    
-                    if (ray.isExit) {
-                        const r = Math.floor(0 * brightness);
-                        const g = Math.floor(255 * brightness);
-                        const b = Math.floor(136 * brightness);
-                        ctx.fillStyle = `rgb(${r},${g},${b})`;
-                    } else if (ray.isStart) {
-                        const r = Math.floor(255 * brightness);
-                        const g = Math.floor(170 * brightness);
-                        const b = Math.floor(0 * brightness);
-                        ctx.fillStyle = `rgb(${r},${g},${b})`;
-                    } else {
-                        if (ray.wallSide === 'vertical') {
-                            brightness *= 0.7;
+                    if (windowsMode && !ray.isExit && !ray.isStart) {
+                        // Draw textured brick wall
+                        // Scale texture to tile properly (4x across a cell)
+                        let worldPos = ray.wallSide === 'vertical' ? ray.hitY : ray.hitX;
+                        let texX = Math.floor((Math.abs(worldPos) * 4)) % 64;
+                        
+                        texX = Math.max(0, Math.min(63, texX));
+                        
+                        for (let y = Math.max(0, Math.floor(wallTop)); y < Math.min(canvas.height, Math.ceil(wallBottom)); y++) {
+                            // Map screen Y to world height and tile 4x
+                            let worldHeight = ((y - wallTop) / wallHeight) * maze.cellSize;
+                            let texY = Math.floor((worldHeight * 4)) % 64;
+                            texY = Math.max(0, Math.min(63, texY));
+                            
+                            const texIndex = (texY * 64 + texX) * 4;
+                            const pixelIndex = (y * canvas.width + i) * 4;
+                            
+                            let brightness = Math.max(0, 1 - correctedDist / 500);
+                            if (ray.wallSide === 'vertical') {
+                                brightness *= 0.7;
+                            }
+                            
+                            pixels[pixelIndex] = brickTextureData[texIndex] * brightness;
+                            pixels[pixelIndex + 1] = brickTextureData[texIndex + 1] * brightness;
+                            pixels[pixelIndex + 2] = brickTextureData[texIndex + 2] * brightness;
+                            pixels[pixelIndex + 3] = 255;
                         }
-                        const color = Math.floor(74 * brightness);
-                        const color2 = Math.floor(144 * brightness);
-                        const color3 = Math.floor(226 * brightness);
-                        ctx.fillStyle = `rgb(${color},${color2},${color3})`;
+                    } else {
+                        // Default colored walls
+                        let brightness = Math.max(0, 1 - correctedDist / 500);
+                        let r, g, b;
+                        
+                        if (ray.isExit) {
+                            r = 0;
+                            g = 255 * brightness;
+                            b = 136 * brightness;
+                        } else if (ray.isStart) {
+                            r = 255 * brightness;
+                            g = 170 * brightness;
+                            b = 0;
+                        } else {
+                            if (ray.wallSide === 'vertical') {
+                                brightness *= 0.7;
+                            }
+                            r = 74 * brightness;
+                            g = 144 * brightness;
+                            b = 226 * brightness;
+                        }
+                        
+                        for (let y = Math.max(0, Math.floor(wallTop)); y < Math.min(canvas.height, Math.ceil(wallBottom)); y++) {
+                            const pixelIndex = (y * canvas.width + i) * 4;
+                            pixels[pixelIndex] = r;
+                            pixels[pixelIndex + 1] = g;
+                            pixels[pixelIndex + 2] = b;
+                            pixels[pixelIndex + 3] = 255;
+                        }
                     }
-                    
-                    ctx.fillRect(i, wallTop, 1, wallHeight);
                 }
                 
-                // Draw hand sprite
+                // Draw the entire frame at once
+                ctx.putImageData(imageData, 0, 0);
+                
                 this.drawHand();
             }
 
@@ -634,27 +867,22 @@
                 const handX = canvas.width - handWidth - 20;
                 const handY = canvas.height - handHeight;
                 
-                // Simple hand/fist sprite
                 ctx.fillStyle = '#d4a574';
                 
-                // Palm
                 ctx.beginPath();
                 ctx.ellipse(handX + 60, handY + 120, 40, 50, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Fingers
                 for (let i = 0; i < 4; i++) {
                     ctx.beginPath();
                     ctx.ellipse(handX + 30 + i * 15, handY + 80 + i * 5, 12, 30, -0.2 + i * 0.1, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 
-                // Thumb
                 ctx.beginPath();
                 ctx.ellipse(handX + 20, handY + 130, 15, 25, -0.5, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Wrist
                 ctx.fillStyle = '#8B4513';
                 ctx.fillRect(handX + 35, handY + 150, 50, 50);
             }
@@ -677,9 +905,7 @@
                 player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
             }
             
-            // Mark starting position as explored
             maze.markExplored(player.x, player.y);
-            
             updateUI();
             canvas.requestPointerLock();
         }
@@ -720,6 +946,7 @@
                 document.getElementById('level').textContent = quickMazeConfig.level;
                 document.getElementById('seedDisplay').textContent = quickMazeConfig.seed;
             }
+            document.getElementById('graphicsMode').textContent = windowsMode ? 'Windows' : 'Default';
         }
 
         // Event listeners
@@ -776,7 +1003,6 @@
         });
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-        // Pointer lock
         canvas.addEventListener('click', () => {
             if (!document.getElementById('startMenu').classList.contains('hidden')) return;
             canvas.requestPointerLock();
@@ -788,19 +1014,17 @@
 
         document.addEventListener('mousemove', (e) => {
             if (pointerLocked && player) {
-                // Reduced sensitivity by 30% (multiply by 0.7)
                 player.angle += e.movementX * 0.0014;
-                player.pitch -= e.movementY * 0.0014; // Reversed Y-axis
+                player.pitch -= e.movementY * 0.0014;
                 
-                // Clamp pitch to prevent over-rotation (about 80 degrees up/down)
                 const maxPitch = 1.4;
                 player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
             }
         });
 
-        // Game loop with delta time for frame-rate independence
+        // Game loop
         let lastTime = performance.now();
-        const targetFPS = 60; // Target 60 FPS as baseline
+        const targetFPS = 60;
         const targetFrameTime = 1000 / targetFPS;
 
         function gameLoop(currentTime) {
@@ -810,18 +1034,13 @@
                 return;
             }
 
-            // Calculate delta time in milliseconds
             const deltaTime = currentTime - lastTime;
             lastTime = currentTime;
             
-            // Normalize to 60 FPS baseline (deltaMultiplier = 1.0 at 60 FPS)
             const deltaMultiplier = deltaTime / targetFrameTime;
-            
-            // Cap delta time to prevent huge jumps (e.g., if tab was backgrounded)
             const cappedDelta = Math.min(deltaMultiplier, 3);
 
             if (!gameState.won) {
-                // Movement with delta time compensation
                 const moveX = Math.cos(player.angle) * player.moveSpeed * cappedDelta;
                 const moveY = Math.sin(player.angle) * player.moveSpeed * cappedDelta;
                 const strafeX = Math.cos(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
@@ -832,17 +1051,14 @@
                 if (keys['a']) player.move(-strafeX, -strafeY, maze);
                 if (keys['d']) player.move(strafeX, strafeY, maze);
 
-                // Mark current position as explored
                 maze.markExplored(player.x, player.y);
 
-                // Check for exit
                 if (player.checkExit(maze)) {
                     gameState.won = true;
                     document.getElementById('win').style.display = 'block';
                 }
             }
 
-            // Render
             player.render(maze);
             maze.drawMinimap(player.x, player.y);
 
