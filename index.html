@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maze Explorer 3D</title>
+    <title>Maze Explorer 3D - Optimized</title>
     <style>
         * {
             margin: 0;
@@ -270,11 +270,17 @@
             font-size: 12px;
             text-align: center;
         }
+
+        #perfStats {
+            color: #0f0;
+            margin-top: 10px;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
     <div id="startMenu">
-        <div class="menu-title">MAZE EXPLORER 3D</div>
+        <div class="menu-title">MAZE EXPLORER 3D<br><span style="font-size:20px;">OPTIMIZED EDITION</span></div>
         <div class="menu-options">
             <div class="menu-item" id="campaignBtn">CAMPAIGN MODE</div>
             <div class="quick-maze-container">
@@ -309,6 +315,10 @@
         <div>Level: <span id="level">1</span></div>
         <div>Seed: <span id="seedDisplay">0</span></div>
         <div>Graphics: <span id="graphicsMode">Default</span></div>
+        <div id="perfStats">
+            <div>FPS: <span id="fps">60</span></div>
+            <div>Rays: <span id="rayCount">240</span></div>
+        </div>
         <button id="resetBtn">Reset Maze</button>
         <button id="menuBtn">Main Menu</button>
     </div>
@@ -334,6 +344,10 @@
         minimapCanvas.width = minimapSize;
         minimapCanvas.height = minimapSize;
 
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsUpdate = performance.now();
+
         // Game state
         let windowsMode = false;
         let gameMode = 'campaign';
@@ -349,11 +363,9 @@
             texCanvas.height = 64;
             const texCtx = texCanvas.getContext('2d');
 
-            // Background (mortar)
             texCtx.fillStyle = '#e0e0e0';
             texCtx.fillRect(0, 0, 64, 64);
 
-            // Draw bricks
             const brickHeight = 16;
             const brickWidth = 32;
             const mortarSize = 2;
@@ -364,7 +376,6 @@
                     const bx = x * brickWidth + offsetX;
                     const by = y * brickHeight;
 
-                    // Brick color with slight variation
                     const variation = Math.random() * 20 - 10;
                     const r = Math.max(0, Math.min(255, 180 + variation));
                     const g = Math.max(0, Math.min(255, 40 + variation));
@@ -378,7 +389,6 @@
                         brickHeight - mortarSize * 2
                     );
 
-                    // Add some texture to bricks
                     for (let i = 0; i < 5; i++) {
                         const tx = bx + Math.random() * brickWidth;
                         const ty = by + Math.random() * brickHeight;
@@ -397,11 +407,9 @@
             texCanvas.height = 64;
             const texCtx = texCanvas.getContext('2d');
 
-            // Base carpet color
             texCtx.fillStyle = '#d4a850';
             texCtx.fillRect(0, 0, 64, 64);
 
-            // Add noise/texture
             for (let y = 0; y < 64; y++) {
                 for (let x = 0; x < 64; x++) {
                     if (Math.random() > 0.7) {
@@ -421,7 +429,6 @@
         const brickTexture = generateBrickTexture();
         const carpetTexture = generateCarpetTexture();
         
-        // Cache texture pixel data for faster access
         const brickTextureData = brickTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
         const carpetTextureData = carpetTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
 
@@ -603,7 +610,7 @@
             }
         }
 
-        // Player with raycasting
+        // Player with OPTIMIZED raycasting
         class Player {
             constructor(x, y, angle) {
                 this.x = x;
@@ -613,7 +620,10 @@
                 this.moveSpeed = 3;
                 this.rotSpeed = 0.05;
                 this.fov = Math.PI / 3;
-                this.rayCount = canvas.width;
+                
+                // OPTIMIZATION: Dramatically reduced ray count
+                this.rayCount = 240; // Was canvas.width (1400)!
+                this.stripWidth = Math.ceil(canvas.width / this.rayCount);
             }
 
             move(dx, dy, maze) {
@@ -737,57 +747,21 @@
             render(maze) {
                 const rays = this.castRays(maze);
                 const pitchOffset = this.pitch * 300;
-                
-                // Create ImageData buffer for the entire screen
-                const imageData = ctx.createImageData(canvas.width, canvas.height);
-                const pixels = imageData.data;
-                
-                // Sky - black (already 0s)
-                
-                // Floor
                 const horizonY = canvas.height / 2 + pitchOffset;
                 
+                // Sky (black)
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
+                
+                // Floor
                 if (windowsMode) {
-                    // Draw textured floor directly to pixel buffer
-                    for (let y = Math.max(0, Math.floor(horizonY)); y < canvas.height; y++) {
-                        const floorDist = (canvas.height / 2) / (y - canvas.height / 2 - pitchOffset);
-                        
-                        for (let x = 0; x < canvas.width; x++) {
-                            const rayAngle = this.angle - this.fov / 2 + (this.fov * x / canvas.width);
-                            const floorX = this.x + Math.cos(rayAngle) * floorDist * 100;
-                            const floorY = this.y + Math.sin(rayAngle) * floorDist * 100;
-                            
-                            // Multiply by 4 to make texture 4x smaller (tiles more)
-                            let texX = Math.floor((Math.abs(floorX) * 4)) % 64;
-                            let texY = Math.floor((Math.abs(floorY) * 4)) % 64;
-                            
-                            texX = Math.max(0, Math.min(63, texX));
-                            texY = Math.max(0, Math.min(63, texY));
-                            
-                            const texIndex = (texY * 64 + texX) * 4;
-                            const pixelIndex = (y * canvas.width + x) * 4;
-                            
-                            const brightness = Math.max(0.3, 1 - floorDist / 8);
-                            pixels[pixelIndex] = carpetTextureData[texIndex] * brightness;
-                            pixels[pixelIndex + 1] = carpetTextureData[texIndex + 1] * brightness;
-                            pixels[pixelIndex + 2] = carpetTextureData[texIndex + 2] * brightness;
-                            pixels[pixelIndex + 3] = 255;
-                        }
-                    }
+                    this.renderTexturedFloor(horizonY);
                 } else {
-                    // Default floor
-                    for (let y = Math.max(0, Math.floor(horizonY)); y < canvas.height; y++) {
-                        for (let x = 0; x < canvas.width; x++) {
-                            const pixelIndex = (y * canvas.width + x) * 4;
-                            pixels[pixelIndex] = 10;
-                            pixels[pixelIndex + 1] = 10;
-                            pixels[pixelIndex + 2] = 20;
-                            pixels[pixelIndex + 3] = 255;
-                        }
-                    }
+                    ctx.fillStyle = '#0a0a14';
+                    ctx.fillRect(0, Math.max(0, horizonY), canvas.width, canvas.height);
                 }
                 
-                // Walls
+                // Walls - OPTIMIZED strip rendering
                 for (let i = 0; i < rays.length; i++) {
                     const ray = rays[i];
                     const correctedDist = ray.dist * Math.cos(ray.angle - this.angle);
@@ -796,69 +770,100 @@
                     const wallTop = (canvas.height - wallHeight) / 2 + pitchOffset;
                     const wallBottom = wallTop + wallHeight;
                     
+                    const stripX = i * this.stripWidth;
+                    
                     if (windowsMode && !ray.isExit && !ray.isStart) {
-                        // Draw textured brick wall
-                        // Scale texture to tile properly (4x across a cell)
-                        let worldPos = ray.wallSide === 'vertical' ? ray.hitY : ray.hitX;
-                        let texX = Math.floor((Math.abs(worldPos) * 4)) % 64;
-                        
-                        texX = Math.max(0, Math.min(63, texX));
-                        
-                        for (let y = Math.max(0, Math.floor(wallTop)); y < Math.min(canvas.height, Math.ceil(wallBottom)); y++) {
-                            // Map screen Y to world height and tile 4x
-                            let worldHeight = ((y - wallTop) / wallHeight) * maze.cellSize;
-                            let texY = Math.floor((worldHeight * 4)) % 64;
-                            texY = Math.max(0, Math.min(63, texY));
-                            
-                            const texIndex = (texY * 64 + texX) * 4;
-                            const pixelIndex = (y * canvas.width + i) * 4;
-                            
-                            let brightness = Math.max(0, 1 - correctedDist / 500);
-                            if (ray.wallSide === 'vertical') {
-                                brightness *= 0.7;
-                            }
-                            
-                            pixels[pixelIndex] = brickTextureData[texIndex] * brightness;
-                            pixels[pixelIndex + 1] = brickTextureData[texIndex + 1] * brightness;
-                            pixels[pixelIndex + 2] = brickTextureData[texIndex + 2] * brightness;
-                            pixels[pixelIndex + 3] = 255;
-                        }
+                        this.renderTexturedWallStrip(ray, stripX, wallTop, wallBottom, correctedDist, maze);
                     } else {
-                        // Default colored walls
-                        let brightness = Math.max(0, 1 - correctedDist / 500);
-                        let r, g, b;
-                        
-                        if (ray.isExit) {
-                            r = 0;
-                            g = 255 * brightness;
-                            b = 136 * brightness;
-                        } else if (ray.isStart) {
-                            r = 255 * brightness;
-                            g = 170 * brightness;
-                            b = 0;
-                        } else {
-                            if (ray.wallSide === 'vertical') {
-                                brightness *= 0.7;
-                            }
-                            r = 74 * brightness;
-                            g = 144 * brightness;
-                            b = 226 * brightness;
-                        }
-                        
-                        for (let y = Math.max(0, Math.floor(wallTop)); y < Math.min(canvas.height, Math.ceil(wallBottom)); y++) {
-                            const pixelIndex = (y * canvas.width + i) * 4;
-                            pixels[pixelIndex] = r;
-                            pixels[pixelIndex + 1] = g;
-                            pixels[pixelIndex + 2] = b;
-                            pixels[pixelIndex + 3] = 255;
-                        }
+                        this.renderColoredWallStrip(ray, stripX, wallTop, wallBottom, correctedDist);
                     }
                 }
                 
-                // Draw the entire frame at once
-                ctx.putImageData(imageData, 0, 0);
-                
                 this.drawHand();
+            }
+
+            renderColoredWallStrip(ray, x, top, bottom, dist) {
+                let brightness = Math.max(0, 1 - dist / 500);
+                let r, g, b;
+                
+                if (ray.isExit) {
+                    r = 0;
+                    g = 255 * brightness;
+                    b = 136 * brightness;
+                } else if (ray.isStart) {
+                    r = 255 * brightness;
+                    g = 170 * brightness;
+                    b = 0;
+                } else {
+                    if (ray.wallSide === 'vertical') brightness *= 0.7;
+                    r = 74 * brightness;
+                    g = 144 * brightness;
+                    b = 226 * brightness;
+                }
+                
+                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                ctx.fillRect(x, Math.max(0, top), this.stripWidth, Math.min(canvas.height, bottom) - Math.max(0, top));
+            }
+
+            renderTexturedWallStrip(ray, x, top, bottom, dist, maze) {
+                let worldPos = ray.wallSide === 'vertical' ? ray.hitY : ray.hitX;
+                let texX = Math.floor((Math.abs(worldPos) * 4)) % 64;
+                texX = Math.max(0, Math.min(63, texX));
+                
+                let brightness = Math.max(0, 1 - dist / 500);
+                if (ray.wallSide === 'vertical') brightness *= 0.7;
+                
+                const clampedTop = Math.max(0, Math.floor(top));
+                const clampedBottom = Math.min(canvas.height, Math.ceil(bottom));
+                const wallHeight = bottom - top;
+                
+                // Sample texture less frequently for better performance
+                const sampleRate = Math.max(1, Math.floor((clampedBottom - clampedTop) / 64));
+                
+                for (let y = clampedTop; y < clampedBottom; y += sampleRate) {
+                    let worldHeight = ((y - top) / wallHeight) * maze.cellSize;
+                    let texY = Math.floor((worldHeight * 4)) % 64;
+                    texY = Math.max(0, Math.min(63, texY));
+                    
+                    const texIndex = (texY * 64 + texX) * 4;
+                    const r = brickTextureData[texIndex] * brightness;
+                    const g = brickTextureData[texIndex + 1] * brightness;
+                    const b = brickTextureData[texIndex + 2] * brightness;
+                    
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.fillRect(x, y, this.stripWidth, sampleRate);
+                }
+            }
+
+            renderTexturedFloor(horizonY) {
+                const skipX = 4;
+                const skipY = 4;
+                
+                for (let y = Math.max(0, Math.floor(horizonY)); y < canvas.height; y += skipY) {
+                    const floorDist = (canvas.height / 2) / (y - canvas.height / 2 - this.pitch * 300);
+                    
+                    for (let i = 0; i < this.rayCount; i += skipX) {
+                        const rayAngle = this.angle - this.fov / 2 + (this.fov * i / this.rayCount);
+                        const floorX = this.x + Math.cos(rayAngle) * floorDist * 100;
+                        const floorY = this.y + Math.sin(rayAngle) * floorDist * 100;
+                        
+                        let texX = Math.floor((Math.abs(floorX) * 4)) % 64;
+                        let texY = Math.floor((Math.abs(floorY) * 4)) % 64;
+                        texX = Math.max(0, Math.min(63, texX));
+                        texY = Math.max(0, Math.min(63, texY));
+                        
+                        const texIndex = (texY * 64 + texX) * 4;
+                        const brightness = Math.max(0.3, 1 - floorDist / 8);
+                        
+                        const r = carpetTextureData[texIndex] * brightness;
+                        const g = carpetTextureData[texIndex + 1] * brightness;
+                        const b = carpetTextureData[texIndex + 2] * brightness;
+                        
+                        ctx.fillStyle = `rgb(${r},${g},${b})`;
+                        const stripX = i * this.stripWidth;
+                        ctx.fillRect(stripX, y, this.stripWidth * skipX, skipY);
+                    }
+                }
             }
 
             drawHand() {
@@ -947,6 +952,9 @@
                 document.getElementById('seedDisplay').textContent = quickMazeConfig.seed;
             }
             document.getElementById('graphicsMode').textContent = windowsMode ? 'Windows' : 'Default';
+            if (player) {
+                document.getElementById('rayCount').textContent = player.rayCount;
+            }
         }
 
         // Event listeners
@@ -1022,7 +1030,7 @@
             }
         });
 
-        // Game loop
+        // Game loop with FPS counter
         let lastTime = performance.now();
         const targetFPS = 60;
         const targetFrameTime = 1000 / targetFPS;
@@ -1039,6 +1047,14 @@
             
             const deltaMultiplier = deltaTime / targetFrameTime;
             const cappedDelta = Math.min(deltaMultiplier, 3);
+
+            // FPS counter
+            frameCount++;
+            if (currentTime - lastFpsUpdate >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastFpsUpdate = currentTime;
+            }
 
             if (!gameState.won) {
                 const moveX = Math.cos(player.angle) * player.moveSpeed * cappedDelta;
