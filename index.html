@@ -333,6 +333,7 @@
     </div>
 
     <script>
+        // ===== CANVAS SETUP =====
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         canvas.width = 1400;
@@ -344,11 +345,7 @@
         minimapCanvas.width = minimapSize;
         minimapCanvas.height = minimapSize;
 
-        // Performance tracking
-        let frameCount = 0;
-        let lastFpsUpdate = performance.now();
-
-        // Game state
+        // ===== GAME STATE =====
         let windowsMode = false;
         let gameMode = 'campaign';
         let quickMazeConfig = { level: 1, seed: 12345 };
@@ -356,50 +353,119 @@
         let maze, player;
         let pointerLocked = false;
 
-        // Texture generation
-        function generateBrickTexture() {
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsUpdate = performance.now();
+
+        // ===== TEXTURE GENERATION =====
+        
+        // Brick texture (32x32)
+        const brickTextureData = [
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+        ];
+
+        // Door texture (32x32)
+        const doorTextureData = [
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,1,1,1,1,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,1,1,1,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,0,0,0,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,0,0,0,1,0,0,0,
+            0,0,0,1,1,1,1,1, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 1,1,1,1,1,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,1,0,1, 1,0,1,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,1,1,1,1,0,1, 1,0,1,1,1,1,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0,
+            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+            0,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,0
+        ];
+
+        function createTextureFromData(data, baseColor) {
             const texCanvas = document.createElement('canvas');
-            texCanvas.width = 64;
-            texCanvas.height = 64;
+            texCanvas.width = 32;
+            texCanvas.height = 32;
             const texCtx = texCanvas.getContext('2d');
-
-            texCtx.fillStyle = '#e0e0e0';
-            texCtx.fillRect(0, 0, 64, 64);
-
-            const brickHeight = 16;
-            const brickWidth = 32;
-            const mortarSize = 2;
-
-            for (let y = 0; y < 4; y++) {
-                const offsetX = (y % 2) * (brickWidth / 2);
-                for (let x = -1; x < 3; x++) {
-                    const bx = x * brickWidth + offsetX;
-                    const by = y * brickHeight;
-
-                    const variation = Math.random() * 20 - 10;
-                    const r = Math.max(0, Math.min(255, 180 + variation));
-                    const g = Math.max(0, Math.min(255, 40 + variation));
-                    const b = Math.max(0, Math.min(255, 40 + variation));
-                    
-                    texCtx.fillStyle = `rgb(${r},${g},${b})`;
-                    texCtx.fillRect(
-                        bx + mortarSize,
-                        by + mortarSize,
-                        brickWidth - mortarSize * 2,
-                        brickHeight - mortarSize * 2
-                    );
-
-                    for (let i = 0; i < 5; i++) {
-                        const tx = bx + Math.random() * brickWidth;
-                        const ty = by + Math.random() * brickHeight;
-                        texCtx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
-                        texCtx.fillRect(tx, ty, 2, 2);
-                    }
+            
+            const imageData = texCtx.createImageData(32, 32);
+            const pixels = imageData.data;
+            
+            for (let i = 0; i < data.length; i++) {
+                const pixelIndex = i * 4;
+                const intensity = data[i] * 255;
+                
+                if (baseColor === 'brick') {
+                    pixels[pixelIndex] = intensity * 0.7;
+                    pixels[pixelIndex + 1] = intensity * 0.3;
+                    pixels[pixelIndex + 2] = intensity * 0.2;
+                } else if (baseColor === 'door') {
+                    pixels[pixelIndex] = intensity * 0.4;
+                    pixels[pixelIndex + 1] = intensity * 0.3;
+                    pixels[pixelIndex + 2] = intensity * 0.1;
                 }
+                
+                pixels[pixelIndex + 3] = 255;
             }
-
+            
+            texCtx.putImageData(imageData, 0, 0);
             return texCanvas;
         }
+
+        const brickTexture = createTextureFromData(brickTextureData, 'brick');
+        const doorTexture = createTextureFromData(doorTextureData, 'door');
+        
+        const brickPixelData = brickTexture.getContext('2d').getImageData(0, 0, 32, 32).data;
+        const doorPixelData = doorTexture.getContext('2d').getImageData(0, 0, 32, 32).data;
 
         function generateCarpetTexture() {
             const texCanvas = document.createElement('canvas');
@@ -426,25 +492,11 @@
             return texCanvas;
         }
 
-        const brickTexture = generateBrickTexture();
         const carpetTexture = generateCarpetTexture();
-        
-        const brickTextureData = brickTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
         const carpetTextureData = carpetTexture.getContext('2d').getImageData(0, 0, 64, 64).data;
 
-        // Windows mode toggle
-        document.getElementById('windowsModeToggle').addEventListener('click', () => {
-            windowsMode = !windowsMode;
-            const toggleSwitch = document.getElementById('toggleSwitch');
-            if (windowsMode) {
-                toggleSwitch.classList.add('active');
-            } else {
-                toggleSwitch.classList.remove('active');
-            }
-            updateUI();
-        });
-
-        // Seeded random number generator
+        // ===== UTILITIES =====
+        
         class Random {
             constructor(seed) {
                 this.seed = seed;
@@ -455,7 +507,8 @@
             }
         }
 
-        // Maze generator
+        // ===== MAZE GENERATION =====
+        
         class Maze {
             constructor(cols, rows, seed) {
                 this.cols = cols;
@@ -463,25 +516,32 @@
                 this.cellSize = 64;
                 this.grid = [];
                 this.rng = new Random(seed);
+                this.doorLocation = null; // Store the single door location
                 
-                for (let y = 0; y < rows; y++) {
-                    this.grid[y] = [];
-                    for (let x = 0; x < cols; x++) {
-                        this.grid[y][x] = {
-                            walls: { top: true, right: true, bottom: true, left: true },
-                            visited: false
-                        };
-                    }
-                }
+                this.initializeGrid();
+                this.generateMaze(0, 0);
+                this.placeRandomDoor();
                 
-                this.generate(0, 0);
                 this.exitX = this.cols - 1;
                 this.exitY = this.rows - 1;
                 this.grid[this.exitY][this.exitX].isExit = true;
             }
 
-            generate(x, y) {
-                const stack = [[x, y]];
+            initializeGrid() {
+                for (let y = 0; y < this.rows; y++) {
+                    this.grid[y] = [];
+                    for (let x = 0; x < this.cols; x++) {
+                        this.grid[y][x] = {
+                            walls: { top: true, right: true, bottom: true, left: true },
+                            wallTextures: { top: 'brick', right: 'brick', bottom: 'brick', left: 'brick' },
+                            visited: false
+                        };
+                    }
+                }
+            }
+
+            generateMaze(startX, startY) {
+                const stack = [[startX, startY]];
                 
                 while (stack.length > 0) {
                     const [cx, cy] = stack[stack.length - 1];
@@ -494,6 +554,7 @@
                         { dx: -1, dy: 0, wall: 'left', opposite: 'right' }
                     ];
                     
+                    // Shuffle directions
                     for (let i = directions.length - 1; i > 0; i--) {
                         const j = Math.floor(this.rng.next() * (i + 1));
                         [directions[i], directions[j]] = [directions[j], directions[i]];
@@ -516,6 +577,50 @@
                     if (!foundUnvisited) {
                         stack.pop();
                     }
+                }
+            }
+
+            placeRandomDoor() {
+                // Simple approach: pick a random cell, pick a random side that has a wall
+                const maxAttempts = 100;
+                let attempts = 0;
+                
+                while (attempts < maxAttempts) {
+                    const x = Math.floor(this.rng.next() * this.cols);
+                    const y = Math.floor(this.rng.next() * this.rows);
+                    const cell = this.grid[y][x];
+                    
+                    // Get all walls that exist for this cell
+                    const wallSides = [];
+                    if (cell.walls.top) wallSides.push('top');
+                    if (cell.walls.right) wallSides.push('right');
+                    if (cell.walls.bottom) wallSides.push('bottom');
+                    if (cell.walls.left) wallSides.push('left');
+                    
+                    if (wallSides.length > 0) {
+                        const side = wallSides[Math.floor(this.rng.next() * wallSides.length)];
+                        this.setDoorTexture(x, y, side);
+                        this.doorLocation = { x, y, side };
+                        return;
+                    }
+                    
+                    attempts++;
+                }
+            }
+
+            setDoorTexture(x, y, side) {
+                // Set the door texture on this cell's side
+                this.grid[y][x].wallTextures[side] = 'door';
+                
+                // Also set it on the neighboring cell's opposite side
+                if (side === 'top' && y > 0) {
+                    this.grid[y - 1][x].wallTextures.bottom = 'door';
+                } else if (side === 'bottom' && y < this.rows - 1) {
+                    this.grid[y + 1][x].wallTextures.top = 'door';
+                } else if (side === 'left' && x > 0) {
+                    this.grid[y][x - 1].wallTextures.right = 'door';
+                } else if (side === 'right' && x < this.cols - 1) {
+                    this.grid[y][x + 1].wallTextures.left = 'door';
                 }
             }
 
@@ -610,7 +715,8 @@
             }
         }
 
-        // Player with OPTIMIZED raycasting
+        // ===== PLAYER & RAYCASTING =====
+        
         class Player {
             constructor(x, y, angle) {
                 this.x = x;
@@ -620,9 +726,7 @@
                 this.moveSpeed = 3;
                 this.rotSpeed = 0.05;
                 this.fov = Math.PI / 3;
-                
-                // OPTIMIZATION: Dramatically reduced ray count
-                this.rayCount = 240; // Was canvas.width (1400)!
+                this.rayCount = 240;
                 this.stripWidth = Math.ceil(canvas.width / this.rayCount);
             }
 
@@ -689,6 +793,7 @@
                 let wallSide = null;
                 let hitX = 0;
                 let hitY = 0;
+                let textureType = 'brick';
                 
                 while (!hitWall && dist < maxDist) {
                     dist += step;
@@ -714,6 +819,7 @@
                         wallSide = 'horizontal';
                         hitX = testX;
                         hitY = testY;
+                        textureType = cell.wallTextures.top;
                     } else if (localY > maze.cellSize - 1 && cell.walls.bottom) {
                         hitWall = true;
                         hitCellX = cellX;
@@ -721,6 +827,7 @@
                         wallSide = 'horizontal';
                         hitX = testX;
                         hitY = testY;
+                        textureType = cell.wallTextures.bottom;
                     } else if (localX < 1 && cell.walls.left) {
                         hitWall = true;
                         hitCellX = cellX;
@@ -728,6 +835,7 @@
                         wallSide = 'vertical';
                         hitX = testX;
                         hitY = testY;
+                        textureType = cell.wallTextures.left;
                     } else if (localX > maze.cellSize - 1 && cell.walls.right) {
                         hitWall = true;
                         hitCellX = cellX;
@@ -735,13 +843,14 @@
                         wallSide = 'vertical';
                         hitX = testX;
                         hitY = testY;
+                        textureType = cell.wallTextures.right;
                     }
                 }
                 
                 const isExit = (hitCellX === maze.exitX && hitCellY === maze.exitY);
                 const isStart = (hitCellX === 0 && hitCellY === 0);
                 
-                return { dist, angle, isExit, isStart, wallSide, hitX, hitY };
+                return { dist, angle, isExit, isStart, wallSide, hitX, hitY, textureType };
             }
 
             render(maze) {
@@ -749,7 +858,7 @@
                 const pitchOffset = this.pitch * 300;
                 const horizonY = canvas.height / 2 + pitchOffset;
                 
-                // Sky (black)
+                // Sky
                 ctx.fillStyle = '#000';
                 ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
                 
@@ -761,7 +870,7 @@
                     ctx.fillRect(0, Math.max(0, horizonY), canvas.width, canvas.height);
                 }
                 
-                // Walls - OPTIMIZED strip rendering
+                // Walls
                 for (let i = 0; i < rays.length; i++) {
                     const ray = rays[i];
                     const correctedDist = ray.dist * Math.cos(ray.angle - this.angle);
@@ -806,9 +915,11 @@
             }
 
             renderTexturedWallStrip(ray, x, top, bottom, dist, maze) {
+                const textureData = ray.textureType === 'door' ? doorPixelData : brickPixelData;
+                
                 let worldPos = ray.wallSide === 'vertical' ? ray.hitY : ray.hitX;
-                let texX = Math.floor((Math.abs(worldPos) * 4)) % 64;
-                texX = Math.max(0, Math.min(63, texX));
+                let texX = Math.floor((Math.abs(worldPos) * 2)) % 32;
+                texX = Math.max(0, Math.min(31, texX));
                 
                 let brightness = Math.max(0, 1 - dist / 500);
                 if (ray.wallSide === 'vertical') brightness *= 0.7;
@@ -817,18 +928,17 @@
                 const clampedBottom = Math.min(canvas.height, Math.ceil(bottom));
                 const wallHeight = bottom - top;
                 
-                // Sample texture less frequently for better performance
-                const sampleRate = Math.max(1, Math.floor((clampedBottom - clampedTop) / 64));
+                const sampleRate = Math.max(1, Math.floor((clampedBottom - clampedTop) / 32));
                 
                 for (let y = clampedTop; y < clampedBottom; y += sampleRate) {
                     let worldHeight = ((y - top) / wallHeight) * maze.cellSize;
-                    let texY = Math.floor((worldHeight * 4)) % 64;
-                    texY = Math.max(0, Math.min(63, texY));
+                    let texY = Math.floor((worldHeight * 0.5)) % 32;
+                    texY = Math.max(0, Math.min(31, texY));
                     
-                    const texIndex = (texY * 64 + texX) * 4;
-                    const r = brickTextureData[texIndex] * brightness;
-                    const g = brickTextureData[texIndex + 1] * brightness;
-                    const b = brickTextureData[texIndex + 2] * brightness;
+                    const texIndex = (texY * 32 + texX) * 4;
+                    const r = textureData[texIndex] * brightness;
+                    const g = textureData[texIndex + 1] * brightness;
+                    const b = textureData[texIndex + 2] * brightness;
                     
                     ctx.fillStyle = `rgb(${r},${g},${b})`;
                     ctx.fillRect(x, y, this.stripWidth, sampleRate);
@@ -893,6 +1003,8 @@
             }
         }
 
+        // ===== GAME MANAGEMENT =====
+        
         function startGame(mode, config = null) {
             gameMode = mode;
             document.getElementById('startMenu').classList.add('hidden');
@@ -957,7 +1069,19 @@
             }
         }
 
-        // Event listeners
+        // ===== EVENT LISTENERS =====
+        
+        document.getElementById('windowsModeToggle').addEventListener('click', () => {
+            windowsMode = !windowsMode;
+            const toggleSwitch = document.getElementById('toggleSwitch');
+            if (windowsMode) {
+                toggleSwitch.classList.add('active');
+            } else {
+                toggleSwitch.classList.remove('active');
+            }
+            updateUI();
+        });
+
         document.getElementById('campaignBtn').addEventListener('click', () => {
             startGame('campaign');
         });
@@ -1001,7 +1125,6 @@
             }
         });
 
-        // Input handling
         const keys = {};
         window.addEventListener('keydown', e => {
             keys[e.key.toLowerCase()] = true;
@@ -1030,7 +1153,8 @@
             }
         });
 
-        // Game loop with FPS counter
+        // ===== GAME LOOP =====
+        
         let lastTime = performance.now();
         const targetFPS = 60;
         const targetFrameTime = 1000 / targetFPS;
@@ -1048,7 +1172,6 @@
             const deltaMultiplier = deltaTime / targetFrameTime;
             const cappedDelta = Math.min(deltaMultiplier, 3);
 
-            // FPS counter
             frameCount++;
             if (currentTime - lastFpsUpdate >= 1000) {
                 document.getElementById('fps').textContent = frameCount;
