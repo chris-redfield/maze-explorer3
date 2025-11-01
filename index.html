@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maze Explorer 3D - Optimized</title>
+    <title>Maze Explorer 3D</title>
     <style>
         * {
             margin: 0;
@@ -280,7 +280,7 @@
 </head>
 <body>
     <div id="startMenu">
-        <div class="menu-title">MAZE EXPLORER 3D<br><span style="font-size:20px;">OPTIMIZED EDITION</span></div>
+        <div class="menu-title">MAZE EXPLORER 3D<br></div>
         <div class="menu-options">
             <div class="menu-item" id="campaignBtn">CAMPAIGN MODE</div>
             <div class="quick-maze-container">
@@ -296,6 +296,7 @@
                     </div>
                 </div>
             </div>
+            <div class="menu-item" id="aiPlayBtn" style="background: rgba(0,255,136,0.1); border-color: #00ff88; color: #00ff88;">AI PLAY</div>
             <div class="windows-mode-toggle" id="windowsModeToggle">
                 <span class="toggle-label">Windows Screensaver Mode</span>
                 <div class="toggle-switch" id="toggleSwitch">
@@ -315,6 +316,10 @@
         <div>Level: <span id="level">1</span></div>
         <div>Seed: <span id="seedDisplay">0</span></div>
         <div>Graphics: <span id="graphicsMode">Default</span></div>
+        <div id="aiStats" style="display:none; margin-top: 10px; color: #00ff88;">
+            <div>Mazes Solved: <span id="mazesSolved">0</span></div>
+            <div>AI Speed: <span id="aiSpeed">1x</span></div>
+        </div>
         <div id="perfStats">
             <div>FPS: <span id="fps">60</span></div>
             <div>Rays: <span id="rayCount">240</span></div>
@@ -323,7 +328,8 @@
         <button id="menuBtn">Main Menu</button>
     </div>
     <div id="instructions">
-        WASD - Move | Mouse - Look | Click to lock pointer
+        WASD - Move | Mouse - Look | Click to lock pointer<br>
+        <span id="aiInstructions" style="display:none;">AI Mode: Press +/- to adjust speed</span>
     </div>
     <div id="win">
         🎉 EXIT FOUND! 🎉<br>
@@ -352,6 +358,14 @@
         let gameState = { level: 1, seed: Date.now(), won: false };
         let maze, player;
         let pointerLocked = false;
+
+        // AI state
+        let aiMode = false;
+        let aiPath = [];
+        let aiCurrentTarget = null;
+        let aiMoveSpeed = 0.5;
+        let aiMazesSolved = 0;
+        let aiNextMazeTimer = 0;
 
         // Performance tracking
         let frameCount = 0;
@@ -516,7 +530,7 @@
                 this.cellSize = 64;
                 this.grid = [];
                 this.rng = new Random(seed);
-                this.doorLocation = null; // Store the single door location
+                this.doorLocation = null;
                 
                 this.initializeGrid();
                 this.generateMaze(0, 0);
@@ -554,7 +568,6 @@
                         { dx: -1, dy: 0, wall: 'left', opposite: 'right' }
                     ];
                     
-                    // Shuffle directions
                     for (let i = directions.length - 1; i > 0; i--) {
                         const j = Math.floor(this.rng.next() * (i + 1));
                         [directions[i], directions[j]] = [directions[j], directions[i]];
@@ -581,7 +594,6 @@
             }
 
             placeRandomDoor() {
-                // Simple approach: pick a random cell, pick a random side that has a wall
                 const maxAttempts = 100;
                 let attempts = 0;
                 
@@ -590,7 +602,6 @@
                     const y = Math.floor(this.rng.next() * this.rows);
                     const cell = this.grid[y][x];
                     
-                    // Get all walls that exist for this cell
                     const wallSides = [];
                     if (cell.walls.top) wallSides.push('top');
                     if (cell.walls.right) wallSides.push('right');
@@ -609,10 +620,8 @@
             }
 
             setDoorTexture(x, y, side) {
-                // Set the door texture on this cell's side
                 this.grid[y][x].wallTextures[side] = 'door';
                 
-                // Also set it on the neighboring cell's opposite side
                 if (side === 'top' && y > 0) {
                     this.grid[y - 1][x].wallTextures.bottom = 'door';
                 } else if (side === 'bottom' && y < this.rows - 1) {
@@ -714,6 +723,108 @@
                 minimapCtx.fill();
             }
         }
+
+        // ===== AI PATHFINDING =====
+        
+        class AIController {
+            constructor() {
+                this.path = [];
+                this.currentWaypoint = 0;
+                this.recalcInterval = 60;
+                this.framesSinceRecalc = 0;
+                this.rotationSpeed = 0.05; // Smooth rotation speed
+            }
+
+            findPath(maze, startX, startY, endX, endY) {
+                const startCellX = Math.floor(startX / maze.cellSize);
+                const startCellY = Math.floor(startY / maze.cellSize);
+                const endCellX = endX;
+                const endCellY = endY;
+
+                const queue = [[startCellX, startCellY, []]];
+                const visited = new Set();
+                visited.add(`${startCellX},${startCellY}`);
+
+                while (queue.length > 0) {
+                    const [x, y, path] = queue.shift();
+
+                    if (x === endCellX && y === endCellY) {
+                        return path.map(([cx, cy]) => ({
+                            x: cx * maze.cellSize + maze.cellSize / 2,
+                            y: cy * maze.cellSize + maze.cellSize / 2
+                        }));
+                    }
+
+                    const cell = maze.grid[y][x];
+                    const neighbors = [];
+
+                    if (!cell.walls.top && y > 0) neighbors.push([x, y - 1]);
+                    if (!cell.walls.bottom && y < maze.rows - 1) neighbors.push([x, y + 1]);
+                    if (!cell.walls.left && x > 0) neighbors.push([x - 1, y]);
+                    if (!cell.walls.right && x < maze.cols - 1) neighbors.push([x + 1, y]);
+
+                    for (const [nx, ny] of neighbors) {
+                        const key = `${nx},${ny}`;
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            queue.push([nx, ny, [...path, [nx, ny]]]);
+                        }
+                    }
+                }
+
+                return [];
+            }
+
+            smoothRotateTowards(currentAngle, targetAngle, speed) {
+                // Normalize angles to -PI to PI range
+                let diff = targetAngle - currentAngle;
+                
+                // Handle wrapping around
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                
+                // Apply rotation speed limit
+                if (Math.abs(diff) < speed) {
+                    return targetAngle;
+                }
+                
+                return currentAngle + Math.sign(diff) * speed;
+            }
+
+            update(player, maze) {
+                this.framesSinceRecalc++;
+
+                if (this.path.length === 0 || this.framesSinceRecalc >= this.recalcInterval) {
+                    this.path = this.findPath(maze, player.x, player.y, maze.exitX, maze.exitY);
+                    this.currentWaypoint = 0;
+                    this.framesSinceRecalc = 0;
+                }
+
+                if (this.path.length > 0 && this.currentWaypoint < this.path.length) {
+                    const target = this.path[this.currentWaypoint];
+                    const dx = target.x - player.x;
+                    const dy = target.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 10) {
+                        this.currentWaypoint++;
+                        return;
+                    }
+
+                    // Smooth rotation towards target
+                    const targetAngle = Math.atan2(dy, dx);
+                    player.angle = this.smoothRotateTowards(player.angle, targetAngle, this.rotationSpeed);
+
+                    // Move forward in the direction we're facing
+                    const moveX = Math.cos(player.angle) * player.moveSpeed * aiMoveSpeed;
+                    const moveY = Math.sin(player.angle) * player.moveSpeed * aiMoveSpeed;
+
+                    player.move(moveX, moveY, maze);
+                }
+            }
+        }
+
+        let aiController = new AIController();
 
         // ===== PLAYER & RAYCASTING =====
         
@@ -858,11 +969,9 @@
                 const pitchOffset = this.pitch * 300;
                 const horizonY = canvas.height / 2 + pitchOffset;
                 
-                // Sky
                 ctx.fillStyle = '#000';
                 ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
                 
-                // Floor
                 if (windowsMode) {
                     this.renderTexturedFloor(horizonY);
                 } else {
@@ -870,7 +979,6 @@
                     ctx.fillRect(0, Math.max(0, horizonY), canvas.width, canvas.height);
                 }
                 
-                // Walls
                 for (let i = 0; i < rays.length; i++) {
                     const ray = rays[i];
                     const correctedDist = ray.dist * Math.cos(ray.angle - this.angle);
@@ -1009,12 +1117,36 @@
             gameMode = mode;
             document.getElementById('startMenu').classList.add('hidden');
             
-            if (mode === 'campaign') {
+            if (mode === 'ai') {
+                aiMode = true;
+                aiMazesSolved = 0;
+                
+                if (config) {
+                    gameState.level = config.level;
+                    gameState.seed = config.seed;
+                } else {
+                    gameState.level = 1;
+                    gameState.seed = Date.now();
+                }
+                
+                const mazeSize = 5 + gameState.level * 5;
+                maze = new Maze(mazeSize, mazeSize, gameState.seed);
+                player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
+                aiController = new AIController();
+                document.getElementById('aiStats').style.display = 'block';
+                document.getElementById('aiInstructions').style.display = 'inline';
+            } else if (mode === 'campaign') {
+                aiMode = false;
+                document.getElementById('aiStats').style.display = 'none';
+                document.getElementById('aiInstructions').style.display = 'none';
                 if (gameState.level > 8) gameState.level = 8;
                 const mazeSize = 5 + gameState.level * 5;
                 maze = new Maze(mazeSize, mazeSize, gameState.seed);
                 player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
             } else {
+                aiMode = false;
+                document.getElementById('aiStats').style.display = 'none';
+                document.getElementById('aiInstructions').style.display = 'none';
                 quickMazeConfig = config;
                 if (quickMazeConfig.level > 8) quickMazeConfig.level = 8;
                 const mazeSize = 5 + quickMazeConfig.level * 5;
@@ -1024,7 +1156,9 @@
             
             maze.markExplored(player.x, player.y);
             updateUI();
-            canvas.requestPointerLock();
+            if (!aiMode) {
+                canvas.requestPointerLock();
+            }
         }
 
         function resetCurrentMaze() {
@@ -1049,12 +1183,21 @@
         function returnToMenu() {
             document.getElementById('startMenu').classList.remove('hidden');
             document.getElementById('win').style.display = 'none';
+            document.getElementById('aiStats').style.display = 'none';
             gameState.won = false;
+            aiMode = false;
+            aiMoveSpeed = 0.5;
             document.exitPointerLock();
         }
 
         function updateUI() {
-            if (gameMode === 'campaign') {
+            if (gameMode === 'ai') {
+                document.getElementById('modeDisplay').textContent = 'AI Runner';
+                document.getElementById('level').textContent = gameState.level;
+                document.getElementById('seedDisplay').textContent = gameState.seed;
+                document.getElementById('mazesSolved').textContent = aiMazesSolved;
+                document.getElementById('aiSpeed').textContent = aiMoveSpeed + 'x';
+            } else if (gameMode === 'campaign') {
                 document.getElementById('modeDisplay').textContent = 'Campaign';
                 document.getElementById('level').textContent = gameState.level;
                 document.getElementById('seedDisplay').textContent = gameState.seed;
@@ -1093,6 +1236,13 @@
             startGame('quick', { level, seed });
         });
 
+        document.getElementById('aiPlayBtn').addEventListener('click', () => {
+            let level = parseInt(document.getElementById('quickLevel').value) || 1;
+            const seed = parseInt(document.getElementById('quickSeed').value) || Date.now();
+            level = Math.max(1, Math.min(8, level));
+            startGame('ai', { level, seed });
+        });
+
         document.getElementById('resetBtn').addEventListener('click', resetCurrentMaze);
         document.getElementById('menuBtn').addEventListener('click', returnToMenu);
         document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
@@ -1128,8 +1278,18 @@
         const keys = {};
         window.addEventListener('keydown', e => {
             keys[e.key.toLowerCase()] = true;
-            if (e.key === ' ' && gameState.won) {
+            if (e.key === ' ' && gameState.won && !aiMode) {
                 document.getElementById('nextLevelBtn').click();
+            }
+            if (aiMode) {
+                if (e.key === '+' || e.key === '=') {
+                    aiMoveSpeed = Math.min(10, aiMoveSpeed + 0.5);
+                    updateUI();
+                }
+                if (e.key === '-' || e.key === '_') {
+                    aiMoveSpeed = Math.max(0.5, aiMoveSpeed - 0.5);
+                    updateUI();
+                }
             }
         });
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -1180,21 +1340,52 @@
             }
 
             if (!gameState.won) {
-                const moveX = Math.cos(player.angle) * player.moveSpeed * cappedDelta;
-                const moveY = Math.sin(player.angle) * player.moveSpeed * cappedDelta;
-                const strafeX = Math.cos(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
-                const strafeY = Math.sin(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
+                if (aiMode) {
+                    aiController.update(player, maze);
+                    maze.markExplored(player.x, player.y);
 
-                if (keys['w']) player.move(moveX, moveY, maze);
-                if (keys['s']) player.move(-moveX, -moveY, maze);
-                if (keys['a']) player.move(-strafeX, -strafeY, maze);
-                if (keys['d']) player.move(strafeX, strafeY, maze);
+                    if (player.checkExit(maze)) {
+                        gameState.won = true;
+                        aiMazesSolved++;
+                        aiNextMazeTimer = 60;
 
-                maze.markExplored(player.x, player.y);
+                        if (aiMazesSolved % 5 === 0 && gameState.level < 8) {
+                            gameState.level++;
+                        }
 
-                if (player.checkExit(maze)) {
-                    gameState.won = true;
-                    document.getElementById('win').style.display = 'block';
+                        if (aiMazesSolved % 10 === 0 && aiMoveSpeed < 3) {
+                            aiMoveSpeed += 0.25;
+                        }
+                    }
+                } else {
+                    const moveX = Math.cos(player.angle) * player.moveSpeed * cappedDelta;
+                    const moveY = Math.sin(player.angle) * player.moveSpeed * cappedDelta;
+                    const strafeX = Math.cos(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
+                    const strafeY = Math.sin(player.angle + Math.PI / 2) * player.moveSpeed * cappedDelta;
+
+                    if (keys['w']) player.move(moveX, moveY, maze);
+                    if (keys['s']) player.move(-moveX, -moveY, maze);
+                    if (keys['a']) player.move(-strafeX, -strafeY, maze);
+                    if (keys['d']) player.move(strafeX, strafeY, maze);
+
+                    maze.markExplored(player.x, player.y);
+
+                    if (player.checkExit(maze)) {
+                        gameState.won = true;
+                        document.getElementById('win').style.display = 'block';
+                    }
+                }
+            } else if (aiMode && aiNextMazeTimer > 0) {
+                aiNextMazeTimer--;
+                if (aiNextMazeTimer === 0) {
+                    gameState.seed = Date.now();
+                    gameState.won = false;
+                    const mazeSize = 5 + gameState.level * 5;
+                    maze = new Maze(mazeSize, mazeSize, gameState.seed);
+                    player = new Player(maze.cellSize / 2, maze.cellSize / 2, 0);
+                    aiController = new AIController();
+                    maze.markExplored(player.x, player.y);
+                    updateUI();
                 }
             }
 
