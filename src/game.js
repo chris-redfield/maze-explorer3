@@ -95,22 +95,6 @@ class GameManager {
         document.addEventListener('pointerlockchange', () => this.handlePointerLockChange());
         document.addEventListener('mousemove', e => this.handleMouseMove(e));
 
-        // Sky upload
-        document.getElementById('skyUpload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        this.textureManager.setSkyTexture(img);
-                        alert('Sky texture loaded!');
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
     }
 
     toggleWindowsMode() {

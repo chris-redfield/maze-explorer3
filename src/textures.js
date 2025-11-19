@@ -85,6 +85,9 @@ class TextureManager {
         this.textures.door = this.createTextureFromData(DOOR_TEXTURE_DATA, 'door');
         this.textures.carpet = this.generateCarpetTexture();
         
+        // Load sky texture
+        this.loadSkyTexture();
+        
         // Cache pixel data for performance
         this.textures.brickPixelData = this.textures.brick.getContext('2d').getImageData(0, 0, 32, 32).data;
         this.textures.doorPixelData = this.textures.door.getContext('2d').getImageData(0, 0, 32, 32).data;
@@ -153,6 +156,14 @@ class TextureManager {
 
     getPixelData(name) {
         return this.textures[name + 'PixelData'];
+    }
+
+    loadSkyTexture() {
+        const img = new Image();
+        img.onload = () => {
+            this.textures.sky = img;
+        };
+        img.src = 'assets/sky.png';
     }
 
     setSkyTexture(imageElement) {
