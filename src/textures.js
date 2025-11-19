@@ -77,6 +77,7 @@ class TextureManager {
     constructor() {
         this.textures = {};
         this.initializeTextures();
+        this.textures.sky = null;
     }
 
     initializeTextures() {
@@ -152,5 +153,9 @@ class TextureManager {
 
     getPixelData(name) {
         return this.textures[name + 'PixelData'];
+    }
+
+    setSkyTexture(imageElement) {
+        this.textures.sky = imageElement;
     }
 }

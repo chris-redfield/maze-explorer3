@@ -130,8 +130,41 @@ class Raycaster {
         const horizonY = canvas.height / 2 + pitchOffset;
         
         // Draw sky
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
+        const skyTexture = textureManager.getTexture('sky');
+
+        if (skyTexture) {
+            const width = skyTexture.width;
+            const height = skyTexture.height;
+            
+            let angleRatio = player.angle / (2 * Math.PI);
+            
+            let xOffset = (angleRatio * width) % width;
+            if (xOffset < 0) xOffset += width;
+
+            const skyHeight = Math.max(0, horizonY);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, canvas.width, skyHeight);
+            ctx.clip();
+
+            ctx.drawImage(skyTexture, 
+                xOffset, 0, width - xOffset, height,
+                0, 0, canvas.width * (1 - xOffset/width), skyHeight
+            );
+            
+            if (xOffset > 0) {
+                ctx.drawImage(skyTexture, 
+                    0, 0, xOffset, height,
+                    canvas.width * (1 - xOffset/width), 0, canvas.width * (xOffset/width), skyHeight
+                );
+            }
+            
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
+        }
         
         // Draw floor
         if (windowsMode) {
