@@ -141,26 +141,35 @@ class Raycaster {
             let xOffset = (angleRatio * width) % width;
             if (xOffset < 0) xOffset += width;
 
-            const skyHeight = Math.max(0, horizonY);
+            // Fill entire sky area with black first to prevent bleeding
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
 
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, canvas.width, skyHeight);
-            ctx.clip();
+            // Use fixed sky height (half canvas height) regardless of pitch
+            const fixedSkyHeight = canvas.height / 2;
+            const skyHeight = Math.max(0, Math.min(fixedSkyHeight, horizonY));
 
-            ctx.drawImage(skyTexture, 
-                xOffset, 0, width - xOffset, height,
-                0, 0, canvas.width * (1 - xOffset/width), skyHeight
-            );
-            
-            if (xOffset > 0) {
+            if (skyHeight > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, 0, canvas.width, skyHeight);
+                ctx.clip();
+
+                // Draw sky with fixed proportions
                 ctx.drawImage(skyTexture, 
-                    0, 0, xOffset, height,
-                    canvas.width * (1 - xOffset/width), 0, canvas.width * (xOffset/width), skyHeight
+                    xOffset, 0, width - xOffset, height,
+                    0, 0, canvas.width * (1 - xOffset/width), fixedSkyHeight
                 );
+                
+                if (xOffset > 0) {
+                    ctx.drawImage(skyTexture, 
+                        0, 0, xOffset, height,
+                        canvas.width * (1 - xOffset/width), 0, canvas.width * (xOffset/width), fixedSkyHeight
+                    );
+                }
+                
+                ctx.restore();
             }
-            
-            ctx.restore();
         } else {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
