@@ -161,7 +161,24 @@ class TextureManager {
     loadSkyTexture() {
         const img = new Image();
         img.onload = () => {
-            this.textures.sky = img;
+            // Create a canvas with original + horizontally flipped version
+            // This creates a seamless seam when the image tiles
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * 2;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Draw original image on the left
+            ctx.drawImage(img, 0, 0);
+
+            // Draw horizontally flipped image on the right
+            ctx.save();
+            ctx.translate(img.width * 2, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+
+            this.textures.sky = canvas;
         };
         img.src = 'assets/night_sky_2.png';
     }
