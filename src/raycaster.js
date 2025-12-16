@@ -145,8 +145,8 @@ class Raycaster {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, Math.max(0, horizonY));
 
-            // Use larger sky height (75% of canvas height) to reduce black space
-            const fixedSkyHeight = canvas.height * 0.75;
+            // Use larger sky height (95% of canvas height) to reduce black space
+            const fixedSkyHeight = canvas.height * 0.95;
             const skyHeight = Math.max(0, Math.min(fixedSkyHeight, horizonY));
 
             if (skyHeight > 0) {

@@ -163,7 +163,7 @@ class TextureManager {
         img.onload = () => {
             this.textures.sky = img;
         };
-        img.src = 'assets/sky.png';
+        img.src = 'assets/night_sky_2.png';
     }
 
     setSkyTexture(imageElement) {
