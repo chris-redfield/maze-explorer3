@@ -11,6 +11,11 @@
         <div class="menu-title">MAZE EXPLORER 3D<br></div>
         <div class="menu-options">
             <div class="menu-item" id="campaignBtn">CAMPAIGN MODE</div>
+            <div class="campaign-controls" id="campaignControls" style="display: none;">
+                <div class="campaign-info">Saved Level: <span id="savedLevel">1</span></div>
+                <button class="campaign-btn" id="continueBtn">Continue</button>
+                <button class="campaign-btn" id="newGameBtn">New Game</button>
+            </div>
             <div class="quick-maze-container">
                 <div class="menu-item" id="quickMazeBtn">QUICK MAZE</div>
                 <div class="quick-maze-controls">
@@ -68,6 +73,7 @@
     <script src="src/utils.js"></script>
     <script src="src/textures.js"></script>
     <script src="src/maze.js"></script>
+    <script src="src/campaignMaze.js"></script>
     <script src="src/player.js"></script>
     <script src="src/raycaster.js"></script>
     <script src="src/ai.js"></script>

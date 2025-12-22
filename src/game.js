@@ -2,6 +2,9 @@
  * Game state management and main game logic for Maze Explorer 3D
  */
 
+// Storage key for campaign save
+const SAVE_KEY = 'mazeExplorer3DSave';
+
 class GameManager {
     constructor() {
         // Canvas setup
@@ -21,14 +24,15 @@ class GameManager {
         this.raycaster = new Raycaster();
         this.raycaster.updateStripWidth(this.canvas.width);
 
-        // Game state
+        // Game state - load from storage or initialize
         this.windowsMode = false;
         this.gameMode = 'campaign';
         this.quickMazeConfig = { level: 1, seed: 12345 };
-        this.gameState = { level: 1, seed: Date.now(), won: false };
+        this.gameState = this.loadGameState();
         this.maze = null;
         this.player = null;
         this.pointerLocked = false;
+        this.teleportCooldown = 0; // For campaign mode teleports
 
         // AI state
         this.aiMode = false;
@@ -56,6 +60,50 @@ class GameManager {
         this.updateUI();
     }
 
+    // Load game state from localStorage
+    loadGameState() {
+        const saved = localStorage.getItem(SAVE_KEY);
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                state.won = false; // Reset won state on load
+                return state;
+            } catch (e) {
+                console.error('Failed to load save data:', e);
+            }
+        }
+        return {
+            level: 1,
+            seed: Date.now(),
+            won: false,
+            highestLevel: 1
+        };
+    }
+
+    // Save game state to localStorage
+    saveGameState() {
+        try {
+            localStorage.setItem(SAVE_KEY, JSON.stringify(this.gameState));
+        } catch (e) {
+            console.error('Failed to save game:', e);
+        }
+    }
+
+    // Update campaign menu display
+    updateCampaignMenu() {
+        const continueBtn = document.getElementById('continueBtn');
+        const savedLevelSpan = document.getElementById('savedLevel');
+        const hasSavedProgress = this.gameState.level > 1 || this.gameState.highestLevel > 1;
+
+        savedLevelSpan.textContent = this.gameState.level;
+
+        if (hasSavedProgress) {
+            continueBtn.disabled = false;
+        } else {
+            continueBtn.disabled = true;
+        }
+    }
+
     initializeEventListeners() {
         // Menu buttons
         document.getElementById('windowsModeToggle').addEventListener('click', () => {
@@ -63,6 +111,32 @@ class GameManager {
         });
 
         document.getElementById('campaignBtn').addEventListener('click', () => {
+            const controls = document.getElementById('campaignControls');
+            const isVisible = controls.style.display !== 'none';
+
+            if (isVisible) {
+                controls.style.display = 'none';
+            } else {
+                controls.style.display = 'flex';
+                this.updateCampaignMenu();
+            }
+        });
+
+        document.getElementById('continueBtn').addEventListener('click', () => {
+            if (this.gameState.level > 8) {
+                this.gameState.level = 8;
+                this.saveGameState();
+            }
+            document.getElementById('campaignControls').style.display = 'none';
+            this.startGame('campaign');
+        });
+
+        document.getElementById('newGameBtn').addEventListener('click', () => {
+            this.gameState.level = 1;
+            this.gameState.seed = Date.now();
+            this.gameState.won = false;
+            this.saveGameState();
+            document.getElementById('campaignControls').style.display = 'none';
             this.startGame('campaign');
         });
 
@@ -135,9 +209,12 @@ class GameManager {
             document.getElementById('aiStats').style.display = 'none';
             document.getElementById('aiInstructions').style.display = 'none';
             if (this.gameState.level > 8) this.gameState.level = 8;
-            const mazeSize = 5 + this.gameState.level * 5;
-            this.maze = new Maze(mazeSize, mazeSize, this.gameState.seed);
-            this.player = new Player(this.maze.cellSize / 2, this.maze.cellSize / 2, 0);
+
+            // Use CampaignMaze3D with BSP generation for campaign mode
+            this.maze = new CampaignMaze3D(this.gameState.level, this.gameState.seed);
+            const startPos = this.maze.getStartPosition();
+            this.player = new Player(startPos.x, startPos.y, 0);
+            this.teleportCooldown = 0;
         } else {
             this.aiMode = false;
             document.getElementById('aiStats').style.display = 'none';
@@ -159,10 +236,12 @@ class GameManager {
 
     resetCurrentMaze() {
         if (this.gameMode === 'campaign') {
-            const mazeSize = 5 + this.gameState.level * 5;
-            this.maze = new Maze(mazeSize, mazeSize, this.gameState.seed);
-            this.player = new Player(this.maze.cellSize / 2, this.maze.cellSize / 2, 0);
+            // Use CampaignMaze3D with BSP generation for campaign mode
+            this.maze = new CampaignMaze3D(this.gameState.level, this.gameState.seed);
+            const startPos = this.maze.getStartPosition();
+            this.player = new Player(startPos.x, startPos.y, 0);
             this.gameState.won = false;
+            this.teleportCooldown = 0;
             document.getElementById('win').style.display = 'none';
         } else {
             this.quickMazeConfig.seed = Date.now();
@@ -185,26 +264,40 @@ class GameManager {
         document.getElementById('startMenu').classList.remove('hidden');
         document.getElementById('win').style.display = 'none';
         document.getElementById('aiStats').style.display = 'none';
+        document.getElementById('campaignControls').style.display = 'none';
         this.gameState.won = false;
         this.aiMode = false;
         this.aiMoveSpeed = 0.5;
+        if (this.gameMode === 'campaign') {
+            this.saveGameState();
+        }
         document.exitPointerLock();
     }
 
     nextLevel() {
         if (this.gameMode === 'campaign') {
             if (this.gameState.level >= 8) {
-                alert('🎉 Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
+                alert('Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
                 this.gameState.level = 1;
             } else {
                 this.gameState.level++;
             }
+
+            // Track highest level reached
+            if (this.gameState.level > (this.gameState.highestLevel || 1)) {
+                this.gameState.highestLevel = this.gameState.level;
+            }
+
             this.gameState.seed = Date.now();
             this.gameState.won = false;
+            this.teleportCooldown = 0;
+            this.saveGameState(); // Save progress
             document.getElementById('win').style.display = 'none';
-            const mazeSize = 5 + this.gameState.level * 5;
-            this.maze = new Maze(mazeSize, mazeSize, this.gameState.seed);
-            this.player = new Player(this.maze.cellSize / 2, this.maze.cellSize / 2, 0);
+
+            // Use CampaignMaze3D with BSP generation for campaign mode
+            this.maze = new CampaignMaze3D(this.gameState.level, this.gameState.seed);
+            const startPos = this.maze.getStartPosition();
+            this.player = new Player(startPos.x, startPos.y, 0);
             this.maze.markExplored(this.player.x, this.player.y);
             this.updateUI();
         } else {
@@ -314,7 +407,7 @@ class GameManager {
             } else {
                 // Human player movement
                 const vectors = this.player.getMovementVectors();
-                
+
                 if (this.keys['w']) this.player.move(vectors.forward.x * cappedDelta, vectors.forward.y * cappedDelta, this.maze);
                 if (this.keys['s']) this.player.move(vectors.backward.x * cappedDelta, vectors.backward.y * cappedDelta, this.maze);
                 if (this.keys['a']) this.player.move(-vectors.strafe.x * cappedDelta, -vectors.strafe.y * cappedDelta, this.maze);
@@ -322,7 +415,32 @@ class GameManager {
 
                 this.maze.markExplored(this.player.x, this.player.y);
 
-                if (this.player.checkExit(this.maze)) {
+                // Campaign mode: check discovery and teleports
+                if (this.gameMode === 'campaign' && typeof this.maze.checkDiscovery === 'function') {
+                    this.maze.checkDiscovery(this.player.x, this.player.y);
+
+                    // Handle teleport cooldown
+                    if (this.teleportCooldown > 0) {
+                        this.teleportCooldown--;
+                    } else {
+                        const teleportDest = this.maze.checkTeleport(this.player.x, this.player.y);
+                        if (teleportDest) {
+                            this.player.x = teleportDest.x;
+                            this.player.y = teleportDest.y;
+                            this.teleportCooldown = 60; // ~1 second cooldown at 60fps
+                        }
+                    }
+                }
+
+                // Check win condition
+                let hasWon = false;
+                if (this.gameMode === 'campaign' && typeof this.maze.checkWin === 'function') {
+                    hasWon = this.maze.checkWin(this.player.x, this.player.y);
+                } else {
+                    hasWon = this.player.checkExit(this.maze);
+                }
+
+                if (hasWon) {
                     this.gameState.won = true;
                     document.getElementById('win').style.display = 'block';
                 }
@@ -413,4 +531,11 @@ let gameManager;
 window.addEventListener('load', () => {
     gameManager = new GameManager();
     gameManager.start();
+});
+
+// Save campaign progress when leaving the page
+window.addEventListener('beforeunload', () => {
+    if (gameManager && gameManager.gameMode === 'campaign') {
+        gameManager.saveGameState();
+    }
 });

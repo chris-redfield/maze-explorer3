@@ -64,24 +64,45 @@ class Raycaster {
         let hitX = 0;
         let hitY = 0;
         let textureType = 'brick';
-        
+        let wallColor = null; // For BSP colored walls
+
+        // Check if this maze uses visibility system (CampaignMaze3D)
+        const usesVisibility = typeof maze.isCellVisible === 'function';
+
         while (!hitWall && dist < maxDist) {
             dist += step;
             const testX = player.x + dx * dist;
             const testY = player.y + dy * dist;
-            
+
             const cellX = Math.floor(testX / maze.cellSize);
             const cellY = Math.floor(testY / maze.cellSize);
-            
+
             if (cellX < 0 || cellX >= maze.cols || cellY < 0 || cellY >= maze.rows) {
                 hitWall = true;
                 break;
             }
-            
+
+            // For BSP mazes, treat non-visible cells as solid walls
+            if (usesVisibility && !maze.isCellVisible(cellX, cellY)) {
+                hitWall = true;
+                hitCellX = cellX;
+                hitCellY = cellY;
+                wallSide = 'vertical';
+                hitX = testX;
+                hitY = testY;
+                textureType = 'brick';
+                break;
+            }
+
             const cell = maze.grid[cellY][cellX];
             const localX = testX % maze.cellSize;
             const localY = testY % maze.cellSize;
-            
+
+            // Store cell color for BSP colored walls
+            if (cell.color) {
+                wallColor = cell.color;
+            }
+
             // Check wall collisions
             if (localY < 1 && cell.walls.top) {
                 hitWall = true;
@@ -90,7 +111,7 @@ class Raycaster {
                 wallSide = 'horizontal';
                 hitX = testX;
                 hitY = testY;
-                textureType = cell.wallTextures.top;
+                textureType = cell.wallTextures ? cell.wallTextures.top : 'brick';
             } else if (localY > maze.cellSize - 1 && cell.walls.bottom) {
                 hitWall = true;
                 hitCellX = cellX;
@@ -98,7 +119,7 @@ class Raycaster {
                 wallSide = 'horizontal';
                 hitX = testX;
                 hitY = testY;
-                textureType = cell.wallTextures.bottom;
+                textureType = cell.wallTextures ? cell.wallTextures.bottom : 'brick';
             } else if (localX < 1 && cell.walls.left) {
                 hitWall = true;
                 hitCellX = cellX;
@@ -106,7 +127,7 @@ class Raycaster {
                 wallSide = 'vertical';
                 hitX = testX;
                 hitY = testY;
-                textureType = cell.wallTextures.left;
+                textureType = cell.wallTextures ? cell.wallTextures.left : 'brick';
             } else if (localX > maze.cellSize - 1 && cell.walls.right) {
                 hitWall = true;
                 hitCellX = cellX;
@@ -114,14 +135,17 @@ class Raycaster {
                 wallSide = 'vertical';
                 hitX = testX;
                 hitY = testY;
-                textureType = cell.wallTextures.right;
+                textureType = cell.wallTextures ? cell.wallTextures.right : 'brick';
             }
         }
-        
+
         const isExit = (hitCellX === maze.exitX && hitCellY === maze.exitY);
-        const isStart = (hitCellX === 0 && hitCellY === 0);
-        
-        return { dist, angle, isExit, isStart, wallSide, hitX, hitY, textureType };
+        const isStart = (hitCellX === maze.startX && hitCellY === maze.startY) || (hitCellX === 0 && hitCellY === 0);
+        const isTeleport = hitCellX >= 0 && hitCellY >= 0 &&
+                          hitCellY < maze.rows && hitCellX < maze.cols &&
+                          maze.grid[hitCellY][hitCellX].isTeleport;
+
+        return { dist, angle, isExit, isStart, isTeleport, wallSide, hitX, hitY, textureType, wallColor };
     }
 
     render(player, maze, canvas, ctx, textureManager, windowsMode = false) {
@@ -205,7 +229,7 @@ class Raycaster {
     renderColoredWallStrip(ray, x, top, bottom, dist, canvas, ctx) {
         let brightness = Math.max(0, 1 - dist / 500);
         let r, g, b;
-        
+
         if (ray.isExit) {
             r = 0;
             g = 255 * brightness;
@@ -214,13 +238,25 @@ class Raycaster {
             r = 255 * brightness;
             g = 170 * brightness;
             b = 0;
+        } else if (ray.isTeleport) {
+            // Purple for teleport cells
+            r = 139 * brightness;
+            g = 92 * brightness;
+            b = 246 * brightness;
+        } else if (ray.wallColor) {
+            // Use BSP region color
+            if (ray.wallSide === 'vertical') brightness *= 0.7;
+            r = ray.wallColor.r * brightness;
+            g = ray.wallColor.g * brightness;
+            b = ray.wallColor.b * brightness;
         } else {
+            // Default blue
             if (ray.wallSide === 'vertical') brightness *= 0.7;
             r = 74 * brightness;
             g = 144 * brightness;
             b = 226 * brightness;
         }
-        
+
         ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fillRect(x, Math.max(0, top), this.stripWidth, Math.min(canvas.height, bottom) - Math.max(0, top));
     }

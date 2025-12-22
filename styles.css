@@ -77,6 +77,57 @@ body {
     box-shadow: none;
 }
 
+/* Campaign Controls */
+.campaign-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px;
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid #4a90e2;
+    border-radius: 8px;
+    margin-top: -10px;
+}
+
+.campaign-info {
+    font-size: 14px;
+    color: #888;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.campaign-info span {
+    color: #4a90e2;
+    font-weight: bold;
+}
+
+.campaign-btn {
+    background: rgba(0,0,0,0.3);
+    border: 2px solid #4a90e2;
+    color: #4a90e2;
+    padding: 12px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s;
+}
+
+.campaign-btn:hover {
+    background: rgba(74, 144, 226, 0.3);
+    transform: translateX(5px);
+}
+
+.campaign-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.campaign-btn:disabled:hover {
+    transform: none;
+    background: rgba(0,0,0,0.3);
+}
+
 /* Quick Maze Controls */
 .quick-maze-container {
     display: flex;
