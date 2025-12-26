@@ -133,7 +133,7 @@ class GameManager {
 
         document.getElementById('newGameBtn').addEventListener('click', () => {
             this.gameState.level = 1;
-            this.gameState.seed = Date.now();
+            this.gameState.seed = parseInt(document.getElementById('quickSeed').value) || Date.now();
             this.gameState.won = false;
             this.saveGameState();
             document.getElementById('campaignControls').style.display = 'none';
@@ -288,7 +288,6 @@ class GameManager {
                 this.gameState.highestLevel = this.gameState.level;
             }
 
-            this.gameState.seed = Date.now();
             this.gameState.won = false;
             this.teleportCooldown = 0;
             this.saveGameState(); // Save progress
